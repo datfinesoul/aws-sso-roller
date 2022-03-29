@@ -4,15 +4,38 @@
 
 ```bash
 # specifying the env variables disabled the prompts
-SSO_START_URL='<profile_name>' \
+SSO_START_URL='https://<yourorg>.awsapps.com/start' \
   SSO_REGION='<region>' \
   NAMESPACE='<short_prefix>' \
   ./aws-sso-roller.bash
+```
 
-# this is only required if the org changed or credentials expired
-aws sso login # only neede
-# test that you have access
-aws --profile <profile_name> sts get-caller-identity
+### Example
+
+If run with the following options:
+
+```bash
+SSO_START_URL='https://testorg.awsapps.com/start'
+SSO_REGION='us-east-1'
+NAMESPACE='xyz'
+```
+
+The output in the config file for each matching account/role would be:
+
+```config
+[profile xyz-accountname-NameOfRole]
+sso_start_url = https://testorg.awsapps.com/start
+sso_region = us-east-1
+sso_role_name = NameOfRole
+sso_account_id = 000000000000
+```
+
+Testing it you would then run:
+
+```bash
+export AWS_PROFILE='xyz-accountname-NameOfRole'
+aws sso login
+aws sts get-caller-identity
 ```
 
 ## Config Dir
