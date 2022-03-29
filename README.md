@@ -7,7 +7,7 @@
 SSO_START_URL='<profile_name>' \
   SSO_REGION='<region>' \
   NAMESPACE='<short_prefix>' \
-  ./go.bash
+  ./aws-sso-roller.bash
 
 # this is only required if the org changed or credentials expired
 aws sso login # only neede
@@ -26,5 +26,5 @@ aws --profile <profile_name> sts get-caller-identity
 SSO_START_URL='https://u-io.awsapps.com/start' \
   SSO_REGION='ap-northeast-1' \
   NAMESPACE='io' \
-  ./go.bash
+  ./aws-sso-roller.bash
 ```
