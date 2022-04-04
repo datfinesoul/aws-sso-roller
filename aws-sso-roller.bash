@@ -173,6 +173,11 @@ _process_accounts() {
       aws configure --profile "${PROFILE}" set sso_region "${SSO_REGION}"
       aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
       aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
+      if [[ -f ".extra" ]]; then
+        while IFS=$'=' read -r a b ; do
+          echo "$a-$b"
+        done < <(cat .extra)
+      fi
     done <<< "${ROLES}"
 
     #let INDEX=$INDEX+1
