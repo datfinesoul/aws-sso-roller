@@ -7,6 +7,15 @@ will have to auth with SSO via their own browser.  The script then continues
 to add every the SSO role assigned to the user in each of the accounts of the
 organization.
 
+## Helper Alias
+
+Assuming you have [fzf](https://github.com/junegunn/fzf) installed, the following
+alias is a nice helper for picking SSO profiles after this script has run.
+
+```bash
+alias sso='export AWS_PROFILE=$(sed -n "s/\[profile \(.*\)\]/\1/gp" ~/.aws/config | fzf)'
+```
+
 ## Usage
 
 ### Basic
