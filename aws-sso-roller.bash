@@ -27,6 +27,7 @@ cleanup() {
     >&2 echo -e "\n:: If you encountered the following error:"
     >&2 echo -e "::   An error occurred (InvalidClientException) when calling the StartDeviceAuthorization operation"
     >&2 echo -e ":: Please remove your ${ROLLER_CONFIG}/client_*.json files."
+    DEBUG="off" remove_credentials
   elif [[ "${__status}" -ne 0 ]]; then
     >&2 echo -e "\n:: Failure (status ${__status})"
   fi
@@ -148,6 +149,14 @@ if [[ ! -f "${ROLLER_TOKEN}" ]]; then
 fi
 ACCESS_TOKEN="$(<${ROLLER_TOKEN} jq -r .accessToken)"
 
+CUSTOM_INI="${ROLLER_CONFIG}/${NAMESPACE}.ini"
+if [[ -f "${CUSTOM_INI}" ]]; then
+  >&2 echo -e "\nThe following additional settings from '${CUSTOM_INI}' will be added:"
+  CUSTOM_DATA="$(< "${CUSTOM_INI}")"
+  >&2 echo -e "\n${CUSTOM_DATA}\n"
+  read -p "Press [Enter] to continue, or CTRL-C if you want to abort."
+fi
+
 _process_accounts() {
   local ACCOUNT_ID ACCOUNT_NAME PROFILE ROLES INDEX
   INDEX=0
@@ -173,11 +182,9 @@ _process_accounts() {
       aws configure --profile "${PROFILE}" set sso_region "${SSO_REGION}"
       aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
       aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
-      if [[ -f ".extra" ]]; then
-        while IFS=$'=' read -r a b ; do
-          echo "$a-$b"
-        done < <(cat .extra)
-      fi
+      while IFS=$'=' read -r KEY VALUE ; do
+        aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
+      done <<< "${CUSTOM_DATA}"
     done <<< "${ROLES}"
 
     #let INDEX=$INDEX+1
