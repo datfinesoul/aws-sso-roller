@@ -9,12 +9,29 @@ organization.
 
 ## Usage
 
+### Basic
+```bash
+./aws-sso-roller.bash
+```
+
+### With pre-populated defaults
 ```bash
 # specifying the env variables disabled the prompts
 SSO_START_URL='https://<yourorg>.awsapps.com/start' \
   SSO_REGION='<region>' \
   NAMESPACE='<short_prefix>' \
   ./aws-sso-roller.bash
+```
+
+### Using a namespace ini with addtional profile settings
+
+If `NAMESPACE` for example is set to `xyz`, creating a `${HOME}/.aws_sso_roller/xyz.ini`
+file, allows you to populate other CLI settings for each profile in that namespace.
+
+eg.
+```ini
+cli_pager=
+region=us-east-1
 ```
 
 ### Example
