@@ -16,9 +16,6 @@ remove_credentials() {
   fi
 }
 
-warning() {
-  >&2 echo ":: An error occurred (InvalidClientException) when calling the StartDeviceAuthorization operation"
-}
 cleanup() {
   # currently runs twice with ctrl-c
   remove_credentials
@@ -124,7 +121,8 @@ if [[ ! -f "${ROLLER_AUTH}" ]]; then
     --output json \
     > "${ROLLER_AUTH}"
   VERIFY_URL="$(<${ROLLER_AUTH} jq -r .verificationUriComplete)"
-  echo -e "\n${VERIFY_URL}\n"
+  echo -e "\nPlease log in via SSO in your browser using the following URL:"
+  echo -e "${VERIFY_URL}\n"
   read -p "Press [Enter] after you have logged in"
 fi
 DEVICE_CODE="$(<${ROLLER_AUTH} jq -r .deviceCode)"

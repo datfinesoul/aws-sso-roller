@@ -1,5 +1,12 @@
 # aws_sso_roller
 
+## Overview
+
+The script creates a new SSO OIDC Client for each region it is used in.  Users
+will have to auth with SSO via their own browser.  The script then continues
+to add every the SSO role assigned to the user in each of the accounts of the
+organization.
+
 ## Usage
 
 ```bash
@@ -42,6 +49,20 @@ aws sts get-caller-identity
 
 - The generated client configuration files are stored in `${HOME}/.aws_sso_roller`.
 - In addition, cached files (for `DEBUG='on'` mode) would also be stored there.
+
+## Under the hood
+
+This script utilizes:
+- [jq](https://github.com/stedolan/jq)
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+
+The following AWS CLI commands are used:
+- `aws configure set`
+- `aws sso-oidc register-client`
+- `aws sso-oidc start-device-authorization`
+- `aws create-token`
+- `aws list-accounts`
+- `aws sso list-account-roles`
 
 ## Notes
 
