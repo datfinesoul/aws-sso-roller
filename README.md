@@ -7,14 +7,40 @@ will have to auth with SSO via their own browser.  The script then continues
 to add every the SSO role assigned to the user in each of the accounts of the
 organization.
 
+## Helper Alias
+
+Assuming you have [fzf](https://github.com/junegunn/fzf) installed, the following
+alias is a nice helper for picking SSO profiles after this script has run.
+
+```bash
+alias sso='export AWS_PROFILE=$(sed -n "s/\[profile \(.*\)\]/\1/gp" ~/.aws/config | fzf)'
+```
+
 ## Usage
 
+### Basic
+```bash
+./aws-sso-roller.bash
+```
+
+### With pre-populated defaults
 ```bash
 # specifying the env variables disabled the prompts
 SSO_START_URL='https://<yourorg>.awsapps.com/start' \
   SSO_REGION='<region>' \
   NAMESPACE='<short_prefix>' \
   ./aws-sso-roller.bash
+```
+
+### Using a namespace ini with addtional profile settings
+
+If `NAMESPACE` for example is set to `xyz`, creating a `${HOME}/.aws_sso_roller/xyz.ini`
+file, allows you to populate other CLI settings for each profile in that namespace.
+
+eg.
+```ini
+cli_pager=
+region=us-east-1
 ```
 
 ### Example
