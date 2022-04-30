@@ -122,9 +122,9 @@ if [[ ! -f "${ROLLER_AUTH}" ]]; then
     --output json \
     > "${ROLLER_AUTH}"
   VERIFY_URL="$(<${ROLLER_AUTH} jq -r .verificationUriComplete)"
-  echo -e "\nPlease log in via SSO in your browser using the following URL:"
+  echo -e "\n:: Please log in via SSO in your browser using the following URL:\n"
   echo -e "${VERIFY_URL}\n"
-  read -p "Press [Enter] after you have logged in"
+  read -p ":: Press [Enter] after you have logged in"
 fi
 DEVICE_CODE="$(<${ROLLER_AUTH} jq -r .deviceCode)"
 
@@ -151,10 +151,10 @@ ACCESS_TOKEN="$(<${ROLLER_TOKEN} jq -r .accessToken)"
 
 CUSTOM_INI="${ROLLER_CONFIG}/${NAMESPACE}.ini"
 if [[ -f "${CUSTOM_INI}" ]]; then
-  >&2 echo -e "\nThe following additional settings from '${CUSTOM_INI}' will be added:"
+  >&2 echo -e "\n:: The following additional settings from '${CUSTOM_INI}' will be added:"
   CUSTOM_DATA="$(< "${CUSTOM_INI}")"
   >&2 echo -e "\n${CUSTOM_DATA}\n"
-  read -p "Press [Enter] to continue, or CTRL-C if you want to abort."
+  read -p ":: Press [Enter] to continue, or CTRL-C if you want to abort."
 fi
 
 _process_accounts() {
@@ -183,8 +183,9 @@ _process_accounts() {
       aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
       aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
       while IFS=$'=' read -r KEY VALUE ; do
+        [[ -z "${KEY}" ]] && continue
         aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
-      done <<< "${CUSTOM_DATA}"
+      done <<< "${CUSTOM_DATA:-}"
     done <<< "${ROLES}"
 
     #let INDEX=$INDEX+1
