@@ -28,11 +28,10 @@ cleanup() {
   # shellcheck disable=SC2154
   info ''
   if [[ -n "${1:-}" ]]; then
-    info "Aborted by ${1:-}"
+    fail "Aborted by ${1:-}"
   elif [[ "${__status}" -eq 254 ]]; then
-    info "If you encountered the following error:"
-    info "  An error occurred (InvalidClientException) when calling the StartDeviceAuthorization operation"
-    info "Please remove your ${ROLLER_CONFIG}/client_*.json files."
+    fail 'The following error occurs if you did not authenticate using the provided URL'
+    fail '- An error occurred (AuthorizationPendingException) when calling the CreateToken operation'
     DEBUG="off" remove_credentials
   elif [[ "${__status}" -ne 0 ]]; then
     fail "Failure (status ${__status})"
@@ -204,7 +203,6 @@ _process_accounts() {
         [[ -z "${KEY}" ]] && continue
         aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
       done <<< "${CUSTOM_DATA:-}"
-      wait
     done <<< "${ROLES}"
 
     #let INDEX=$INDEX+1
