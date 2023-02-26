@@ -32,10 +32,10 @@ SSO_START_URL='https://<yourorg>.awsapps.com/start' \
   ./aws-sso-roller.bash
 ```
 
-### Using a namespace ini with addtional profile settings
+### Using a namespace `.ini` with additional profile settings
 
 If `NAMESPACE` for example is set to `xyz`, creating a `${HOME}/.aws_sso_roller/xyz.ini`
-file, allows you to populate other CLI settings for each profile in that namespace.
+file, allows you to populate other [CLI settings](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-settings) for each profile in that namespace.
 
 eg.
 ```ini
@@ -45,7 +45,7 @@ region=us-east-1
 
 ### Example
 
-If run with the following options:
+The values provided here are purely samples, please replace them with values applicable to your AWS organization.
 
 ```bash
 SSO_START_URL='https://testorg.awsapps.com/start'
@@ -56,17 +56,17 @@ NAMESPACE='xyz'
 The output in the config file for each matching account/role would be:
 
 ```config
-[profile xyz-accountname-NameOfRole]
+[profile xyz-account1-role1]
 sso_start_url = https://testorg.awsapps.com/start
 sso_region = us-east-1
-sso_role_name = NameOfRole
+sso_role_name = role1
 sso_account_id = 000000000000
 ```
 
 Testing it you would then run:
 
 ```bash
-export AWS_PROFILE='xyz-accountname-NameOfRole'
+export AWS_PROFILE='xyz-account1-role1'
 aws sso login
 aws sts get-caller-identity
 ```

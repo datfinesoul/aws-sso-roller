@@ -4,12 +4,17 @@ set -o nounset
 set -o pipefail
 IFS=$'\n\t'
 
+info () { test ! -t 0 && >&2 sed "s/^/:: ${1:-}/g" || >&2 echo -e ":: $@"; }
+pass () { >&2 echo -e ":✔ $@"; }
+fail () { >&2 echo -e ":✖ $@"; }
+
 ROLLER_CONFIG="${HOME}/.aws_sso_roller"
 ROLLER_CLIENT="${ROLLER_CONFIG}/client.json"
 ROLLER_AUTH="${ROLLER_CONFIG}/auth.json"
 ROLLER_TOKEN="${ROLLER_CONFIG}/token.json"
 
 remove_credentials() {
+  # remove unless in debug mode
   if [[ "${DEBUG:-}" != "on" ]]; then
     rm -f "${ROLLER_AUTH}"
     rm -f "${ROLLER_TOKEN}"
@@ -21,15 +26,16 @@ cleanup() {
   remove_credentials
 
   # shellcheck disable=SC2154
+  info ''
   if [[ -n "${1:-}" ]]; then
-    >&2 echo -e "\n:: Aborted by ${1:-}"
+    info "Aborted by ${1:-}"
   elif [[ "${__status}" -eq 254 ]]; then
-    >&2 echo -e "\n:: If you encountered the following error:"
-    >&2 echo -e "::   An error occurred (InvalidClientException) when calling the StartDeviceAuthorization operation"
-    >&2 echo -e ":: Please remove your ${ROLLER_CONFIG}/client_*.json files."
+    info "If you encountered the following error:"
+    info "  An error occurred (InvalidClientException) when calling the StartDeviceAuthorization operation"
+    info "Please remove your ${ROLLER_CONFIG}/client_*.json files."
     DEBUG="off" remove_credentials
   elif [[ "${__status}" -ne 0 ]]; then
-    >&2 echo -e "\n:: Failure (status ${__status})"
+    fail "Failure (status ${__status})"
   fi
 }
 export -f cleanup
@@ -40,7 +46,7 @@ trap 'trap - INT; cleanup SIGINT; kill -INT $$' INT
 trap 'trap - TERM; cleanup SIGTERM; kill -TERM $$' TERM
 
 if [[ "$(id -u)" -eq "0" ]]; then
-  >&2 echo ":: please DO NOT run as root"
+  fail ":: please DO NOT run as root"
   exit 1
 fi
 
@@ -91,10 +97,29 @@ prompt "NAMESPACE"
 
 aws --profile aws_sso_roller configure \
   set cli_follow_urlparam false
-aws --profile aws_sso_roller configure \
-  set cli_follow_urlparam false
+
+CUSTOM_INI="${ROLLER_CONFIG}/${NAMESPACE}.ini"
+if [[ -f "${CUSTOM_INI}" ]]; then
+  info ''
+  info "The following additional settings from '${CUSTOM_INI}' will be added:"
+  CUSTOM_DATA="$(< "${CUSTOM_INI}")"
+  echo "${CUSTOM_DATA}" | info '  '
+  info ''
+  >&2 read -p ":: Press [Enter] to continue, or CTRL-C if you want to abort."
+fi
 
 ROLLER_CLIENT="${ROLLER_CONFIG}/client_${SSO_REGION}.json"
+if [[ -f "${ROLLER_CLIENT}" ]]; then
+  CLIENT_EXPIRATION="$(<"${ROLLER_CLIENT}" jq -r .clientSecretExpiresAt)"
+  NOW="$(date +'%s')"
+  if [[ "${NOW}" -gt "${CLIENT_EXPIRATION}" ]]; then
+    info 'client secret expired, generating new secret'
+    rm -f "${ROLLER_CLIENT}"
+  else
+    DURATION="$(( (${CLIENT_EXPIRATION}-${NOW})/86400 ))"
+    info "client secret still valid for ${DURATION} days."
+  fi
+fi
 if [[ ! -f "${ROLLER_CLIENT}" ]]; then
   aws sso-oidc register-client \
     --client-name aws-sso-roller \
@@ -105,13 +130,12 @@ if [[ ! -f "${ROLLER_CLIENT}" ]]; then
     --output json \
     > "${ROLLER_CLIENT}"
 fi
-echo -n ":: client secret expires: "
-<"${ROLLER_CLIENT}" jq -r .clientSecretExpiresAt | epoch - +"%Y-%m-%dT%H:%M:%S%z"
+>&2 echo -n ":: client secret expires: "
+<"${ROLLER_CLIENT}" jq -r .clientSecretExpiresAt | >&2 epoch - +"%Y-%m-%dT%H:%M:%S%z"
 CLIENT_ID="$(<${ROLLER_CLIENT} jq -r .clientId)"
 CLIENT_SECRET="$(<${ROLLER_CLIENT} jq -r .clientSecret)"
 
 if [[ ! -f "${ROLLER_AUTH}" ]]; then
-# TODO: figure out timeout and ignore file if certain age
   aws sso-oidc start-device-authorization \
     --client-id "${CLIENT_ID}" \
     --client-secret "${CLIENT_SECRET}" \
@@ -122,9 +146,9 @@ if [[ ! -f "${ROLLER_AUTH}" ]]; then
     --output json \
     > "${ROLLER_AUTH}"
   VERIFY_URL="$(<${ROLLER_AUTH} jq -r .verificationUriComplete)"
-  echo -e "\n:: Please log in via SSO in your browser using the following URL:\n"
-  echo -e "${VERIFY_URL}\n"
-  read -p ":: Press [Enter] after you have logged in"
+  info "Please log in via SSO in your browser using the following URL:"
+  info "- ${VERIFY_URL}\n"
+  >&2 read -p ":: Press [Enter] after you have logged in"
 fi
 DEVICE_CODE="$(<${ROLLER_AUTH} jq -r .deviceCode)"
 
@@ -132,9 +156,10 @@ if [[ -f "${ROLLER_TOKEN}" ]]; then
   let TOKEN_AGE="$(date +%s) - $(date -r "${ROLLER_TOKEN}" +%s)"
   TOKEN_EXPIRATION="$(<"${ROLLER_TOKEN}" jq -r .expiresIn)"
   if [[ "${TOKEN_AGE}" -gt "${TOKEN_EXPIRATION}" ]]; then
-    >&2 echo ":: token expired"
+    info "token expired"
   fi
 fi
+
 if [[ ! -f "${ROLLER_TOKEN}" ]]; then
   aws sso-oidc create-token \
     --client-id "${CLIENT_ID}" \
@@ -148,14 +173,6 @@ if [[ ! -f "${ROLLER_TOKEN}" ]]; then
     > "${ROLLER_TOKEN}"
 fi
 ACCESS_TOKEN="$(<${ROLLER_TOKEN} jq -r .accessToken)"
-
-CUSTOM_INI="${ROLLER_CONFIG}/${NAMESPACE}.ini"
-if [[ -f "${CUSTOM_INI}" ]]; then
-  >&2 echo -e "\n:: The following additional settings from '${CUSTOM_INI}' will be added:"
-  CUSTOM_DATA="$(< "${CUSTOM_INI}")"
-  >&2 echo -e "\n${CUSTOM_DATA}\n"
-  read -p ":: Press [Enter] to continue, or CTRL-C if you want to abort."
-fi
 
 _process_accounts() {
   local ACCOUNT_ID ACCOUNT_NAME PROFILE ROLES INDEX
@@ -182,10 +199,12 @@ _process_accounts() {
       aws configure --profile "${PROFILE}" set sso_region "${SSO_REGION}"
       aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
       aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
+      # update the settings from the custom .ini
       while IFS=$'=' read -r KEY VALUE ; do
         [[ -z "${KEY}" ]] && continue
         aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
       done <<< "${CUSTOM_DATA:-}"
+      wait
     done <<< "${ROLES}"
 
     #let INDEX=$INDEX+1
