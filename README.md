@@ -2,15 +2,13 @@
 
 ## Overview
 
-The script creates a new SSO OIDC Client for each region it is used in.  Users
-will have to auth with SSO via their own browser.  The script then continues
-to add every the SSO role assigned to the user in each of the accounts of the
-organization.
+Enumerates all of the AWS SSO permission-sets you have access to in your organization, and creates corresponding profiles in your `~/.aws/config` file.
+
+This script creates a reusable SSO OIDC Client for each region it is used in in case of subsequent runs.  (Unless you are running this for multiple organizations, usually only one client is created)
 
 ## Helper Alias
 
-Assuming you have [fzf](https://github.com/junegunn/fzf) installed, the following
-alias is a nice helper for picking SSO profiles after this script has run.
+After you've successfully run `aws-sso-roller`, and assuming you have [fzf](https://github.com/junegunn/fzf) installed, the following alias is a nice helper for picking SSO profiles once the initial `aws sso login` is completed.
 
 ```bash
 alias sso='export AWS_PROFILE=$(sed -n "s/\[profile \(.*\)\]/\1/gp" ~/.aws/config | fzf)'
@@ -23,7 +21,12 @@ alias sso='export AWS_PROFILE=$(sed -n "s/\[profile \(.*\)\]/\1/gp" ~/.aws/confi
 ./aws-sso-roller.bash
 ```
 
-### With pre-populated defaults
+### (Alternative) Using environment variables
+
+You can also skip all the prompts by providing the following environment variables.
+
+(*replace any `< ... >` values*)
+
 ```bash
 # specifying the env variables disabled the prompts
 SSO_START_URL='https://<yourorg>.awsapps.com/start' \
@@ -32,12 +35,10 @@ SSO_START_URL='https://<yourorg>.awsapps.com/start' \
   ./aws-sso-roller.bash
 ```
 
-### Using a namespace `.ini` with additional profile settings
+### (Optional) Add additional AWS CLI settings for all profiles
 
-If `NAMESPACE` for example is set to `xyz`, creating a `${HOME}/.aws_sso_roller/xyz.ini`
-file, allows you to populate other [CLI settings](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-settings) for each profile in that namespace.
+If `NAMESPACE` for example is set to `xyz`, creating a `${HOME}/.aws_sso_roller/xyz.ini` file, allows you to populate other [CLI settings](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-settings) for each AWS profile in that namespace.
 
-eg.
 ```ini
 cli_pager=
 region=us-east-1
@@ -82,7 +83,7 @@ This script utilizes:
 - [jq](https://github.com/stedolan/jq)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-The following AWS CLI commands are used:
+The following AWS CLI commands are utilized:
 - `aws configure set`
 - `aws sso-oidc register-client`
 - `aws sso-oidc start-device-authorization`
@@ -96,5 +97,7 @@ The following AWS CLI commands are used:
 SSO_START_URL='https://u-io.awsapps.com/start' \
   SSO_REGION='ap-northeast-1' \
   NAMESPACE='io' \
-  ./aws-sso-roller.bash
+  ./aws-sso-roller.bash [--cache]
 ```
+
+There is a `--cache` option that can be passed to the script, which uses previously existing AWS authorization and also caches client authorization to re-running the script.  This primarily exists for development and should not be used unless needed.

@@ -13,9 +13,15 @@ ROLLER_CLIENT="${ROLLER_CONFIG}/client.json"
 ROLLER_AUTH="${ROLLER_CONFIG}/auth.json"
 ROLLER_TOKEN="${ROLLER_CONFIG}/token.json"
 
+CACHE=''
+if [[ $# -eq 1 && "${1}" == '--cache' ]]; then
+  info '--cache detected: persisting and using existing auth'
+  CACHE='on'
+fi
+
 remove_credentials() {
   # remove unless in debug mode
-  if [[ "${DEBUG:-}" != "on" ]]; then
+  if [[ "${CACHE}" != "on" ]]; then
     rm -f "${ROLLER_AUTH}"
     rm -f "${ROLLER_TOKEN}"
   fi
@@ -32,7 +38,8 @@ cleanup() {
   elif [[ "${__status}" -eq 254 ]]; then
     fail 'The following error occurs if you did not authenticate using the provided URL'
     fail '- An error occurred (AuthorizationPendingException) when calling the CreateToken operation'
-    DEBUG="off" remove_credentials
+    # if case of auth failure, the cache files are always removed
+    CACHE="off" remove_credentials
   elif [[ "${__status}" -ne 0 ]]; then
     fail "Failure (status ${__status})"
   fi
@@ -87,15 +94,56 @@ prompt() {
   done
 }
 
+
+_process_accounts() {
+  local ACCOUNT_ID ACCOUNT_NAME PROFILE ROLES INDEX ACCOUNTS ACCESS_TOKEN
+  ACCESS_TOKEN="${1}"
+  ACCOUNTS="${2}"
+  INDEX=0
+  while read -r ACCOUNT_ID ACCOUNT_NAME ; do
+    ACCOUNT_NAME="${ACCOUNT_NAME,,}"
+    ACCOUNT_NAME="${ACCOUNT_NAME//[^a-z0-9\ _-]/}"
+    ACCOUNT_NAME="${ACCOUNT_NAME//[\ _]/-}"
+    >&2 echo ":: Setting up roles for ${ACCOUNT_NAME}"
+
+    ROLES="$(aws sso list-account-roles \
+      --account-id "${ACCOUNT_ID}" \
+      --access-token "${ACCESS_TOKEN}" \
+      --profile aws_sso_roller \
+      --region "${SSO_REGION}" \
+      --no-sign-request \
+      --output json \
+      | jq -rM '.roleList[] | [.roleName] | @tsv' \
+      )"
+    while read -r ROLE ; do
+      >&2 echo "::   $ROLE"
+      PROFILE="${NAMESPACE}-${ACCOUNT_NAME}-${ROLE}"
+      aws configure --profile "${PROFILE}" set sso_start_url "${SSO_START_URL}"
+      aws configure --profile "${PROFILE}" set sso_region "${SSO_REGION}"
+      aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
+      aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
+      # update the settings from the custom .ini
+      while IFS=$'=' read -r KEY VALUE ; do
+        [[ -z "${KEY}" ]] && continue
+        aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
+      done <<< "${CUSTOM_DATA:-}"
+    done <<< "${ROLES}"
+
+    #let INDEX=$INDEX+1
+    #[[ $INDEX -ge 2 ]] && break
+  done <<< "${ACCOUNTS}"
+}
+
 mkdir -p "${ROLLER_CONFIG}"
 remove_credentials
 
+# If these weren't provided via environment variables, collect them now
 prompt "SSO_START_URL"
 prompt "SSO_REGION" "us-east-1"
 prompt "NAMESPACE"
 
-aws --profile aws_sso_roller configure \
-  set cli_follow_urlparam false
+# since we are passing URLs as parameters, force CLI not to resolve them
+aws --profile aws_sso_roller configure set 'cli_follow_urlparam' 'false'
 
 CUSTOM_INI="${ROLLER_CONFIG}/${NAMESPACE}.ini"
 if [[ -f "${CUSTOM_INI}" ]]; then
@@ -145,8 +193,9 @@ if [[ ! -f "${ROLLER_AUTH}" ]]; then
     --output json \
     > "${ROLLER_AUTH}"
   VERIFY_URL="$(<${ROLLER_AUTH} jq -r .verificationUriComplete)"
-  info "Please log in via SSO in your browser using the following URL:"
-  info "- ${VERIFY_URL}\n"
+  info 'Please log in via SSO in your browser using the following URL:'
+  info "- ${VERIFY_URL}"
+  info ''
   >&2 read -p ":: Press [Enter] after you have logged in"
 fi
 DEVICE_CODE="$(<${ROLLER_AUTH} jq -r .deviceCode)"
@@ -171,45 +220,8 @@ if [[ ! -f "${ROLLER_TOKEN}" ]]; then
     --output json \
     > "${ROLLER_TOKEN}"
 fi
+
 ACCESS_TOKEN="$(<${ROLLER_TOKEN} jq -r .accessToken)"
-
-_process_accounts() {
-  local ACCOUNT_ID ACCOUNT_NAME PROFILE ROLES INDEX
-  INDEX=0
-  while read -r ACCOUNT_ID ACCOUNT_NAME ; do
-    ACCOUNT_NAME="${ACCOUNT_NAME,,}"
-    ACCOUNT_NAME="${ACCOUNT_NAME//[^a-z0-9\ _-]/}"
-    ACCOUNT_NAME="${ACCOUNT_NAME//[\ _]/-}"
-    >&2 echo ":: Setting up roles for ${ACCOUNT_NAME}"
-
-    ROLES="$(aws sso list-account-roles \
-      --account-id "${ACCOUNT_ID}" \
-      --access-token "${ACCESS_TOKEN}" \
-      --profile aws_sso_roller \
-      --region "${SSO_REGION}" \
-      --no-sign-request \
-      --output json \
-      | jq -rM '.roleList[] | [.roleName] | @tsv' \
-      )"
-    while read -r ROLE ; do
-      >&2 echo "::   $ROLE"
-      PROFILE="${NAMESPACE}-${ACCOUNT_NAME}-${ROLE}"
-      aws configure --profile "${PROFILE}" set sso_start_url "${SSO_START_URL}"
-      aws configure --profile "${PROFILE}" set sso_region "${SSO_REGION}"
-      aws configure --profile "${PROFILE}" set sso_role_name "${ROLE}"
-      aws configure --profile "${PROFILE}" set sso_account_id "${ACCOUNT_ID}"
-      # update the settings from the custom .ini
-      while IFS=$'=' read -r KEY VALUE ; do
-        [[ -z "${KEY}" ]] && continue
-        aws configure --profile "${PROFILE}" set "${KEY}" "${VALUE}"
-      done <<< "${CUSTOM_DATA:-}"
-    done <<< "${ROLES}"
-
-    #let INDEX=$INDEX+1
-    #[[ $INDEX -ge 2 ]] && break
-  done <<< "$1"
-}
-
 ACCOUNTS="$(aws sso list-accounts \
   --access-token "${ACCESS_TOKEN}" \
   --profile aws_sso_roller \
@@ -219,4 +231,4 @@ ACCOUNTS="$(aws sso list-accounts \
   | jq -rM '.accountList[] | [.accountId, .accountName] | @tsv' \
   )"
 
-_process_accounts "${ACCOUNTS}"
+_process_accounts "${ACCESS_TOKEN}" "${ACCOUNTS}"
