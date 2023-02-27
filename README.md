@@ -101,3 +101,5 @@ SSO_START_URL='https://u-io.awsapps.com/start' \
 ```
 
 There is a `--cache` option that can be passed to the script, which uses previously existing AWS authorization and also caches client authorization to re-running the script.  This primarily exists for development and should not be used unless needed.
+
+The reason the OIDC client is cached, is because AWS might ban an IP address that generates too many OIDC clients.
