@@ -19,6 +19,10 @@ alias sso='export AWS_PROFILE=$(sed -n "s/\[profile \(.*\)\]/\1/gp" ~/.aws/confi
 ### Basic
 ```bash
 ./aws-sso-roller.bash
+# You then prompted with the following and need to supply the <> values
+SSO_START_URL []: https://<yourorg>.awsapps.com/start
+SSO_REGION [us-east-1]: <region>
+NAMESPACE []: <short_prefix>
 ```
 
 ### (Alternative) Using environment variables
